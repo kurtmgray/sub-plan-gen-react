@@ -1,11 +1,14 @@
-import https from "https";
 import { SSM } from "@aws-sdk/client-ssm";
 
 const ssm = new SSM({ region: "us-west-1" });
 
 export const handler = async (event, context) => {
   try {
-    const prompt = `Generate a lesson plan for a ${event.gradeLevel}th grade ${event.subjectArea} lesson on ${event.unit}. The lesson should be appropriate for a substitute teacher and should include at least ${event.numLearningObjectives} learning objectives. Please direct me to any activities, assessments, and necessary materials or resources.`;
+    const prompt = `Generate a lesson plan for a ${event.gradeLevel}th grade ${event.subjectArea} 
+    lesson on ${event.unit}. The lesson should be appropriate for a substitute teacher and should 
+    include at least ${event.numLearningObjectives} learning objectives aligned with California 
+    state standards, based on the given grade. Please direct me to any activities, assessments, 
+    and necessary materials or resources.`;
     const apiKey = await getApiKey();
     const response = await generateLessonPlan(prompt, apiKey);
     return {
@@ -23,11 +26,14 @@ export const handler = async (event, context) => {
 
 async function getApiKey() {
   // API key stored at AWS Systems Manager endpoint
-  const ssmParam = await ssm.getParameter({ Name: "/openai/api_key" });
-  return ssmParam.Parameter.Value;
+  // console.log(await ssm.getParameter({ Name: "/openai/api_key" }));
+  // const ssmParam = await ssm.getParameter({ Name: "/openai/api_key" });
+  // return ssmParam.Parameter.Value;
+  return "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";
 }
 
 function generateLessonPlan(prompt, apiKey) {
+  console.log(apiKey);
   const data = JSON.stringify({
     model: "text-davinci-003",
     prompt: prompt,
@@ -37,41 +43,35 @@ function generateLessonPlan(prompt, apiKey) {
   });
 
   const options = {
-    hostname: "api.openai.com",
-    path: "/v1/completions",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      //   "Content-Length": data.length, //why
     },
+    body: data,
   };
 
   return new Promise((resolve, reject) => {
-    console.log(https);
-    const req = https.request(options, (res) => {
-      let data = "";
-
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-
-      res.on("end", () => {
-        const response = JSON.parse(data);
-        if (response.choices && response.choices.length > 0) {
-          resolve(response);
+    fetch("https://api.openai.com/v1/completions", options)
+      .then((response) => {
+        console.log(response);
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.choices && data.choices.length > 0) {
+          console.log(data);
+          resolve(data);
         } else {
+          console.log(data);
           reject("Error generating lesson plan");
         }
+      })
+      .catch((error) => {
+        reject(error);
       });
-    });
-
-    req.on("error", (err) => {
-      reject(err);
-    });
-
-    req.write(data);
-    req.end();
   });
 }
 
